@@ -1,11 +1,14 @@
 package com.example.attendance;
 
+import com.ica.database.DataBaseAdapter;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.location.Location;
@@ -22,6 +25,8 @@ public class AttendanceActivity extends Activity implements LocationListener{
 	private int cameraId = 0;
 	private LocationManager GpslocationManager;
 	public static ProgressDialog pgLogin;
+	String code;
+	String pwd;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -39,7 +44,7 @@ public class AttendanceActivity extends Activity implements LocationListener{
 			//cameraId = findBackFacingCamera();
 			if (cameraId < 0) 
 			{
-				Toast.makeText(this, "Sorry you don't have front secondary camera",Toast.LENGTH_LONG).show();
+				Toast.makeText(this, "Sorry you don't have secondary camera",Toast.LENGTH_LONG).show();
 				//Exit from application
 				Intent intent = new Intent(Intent.ACTION_MAIN);
 				intent.addCategory(Intent.CATEGORY_HOME);
@@ -53,7 +58,22 @@ public class AttendanceActivity extends Activity implements LocationListener{
 		}
 	}
 
-	public void onClick(View view) 
+	public void in(View v) {
+		String value = "I";
+		hitServer(value);
+	}
+	
+	public void out(View v) {
+		String value = "O";
+		hitServer(value);
+	}
+	
+	public void absent(View v) {
+		String value = "A";
+		hitServer(value);
+	}
+	
+	public void hitServer(String InOutAb) 
 	{
 		boolean isGPS;
 		try {
@@ -93,7 +113,33 @@ public class AttendanceActivity extends Activity implements LocationListener{
 				pgLogin.setCanceledOnTouchOutside(false);
 
 				pgLogin.show();
-				camera.takePicture(null, null,new PhotoHandler(getApplicationContext()));
+				
+				Bundle extras = getIntent().getExtras();
+				if (extras == null) 
+				{
+					return;
+				}
+				code = extras.getString("code");
+				pwd = extras.getString("pwd");
+				
+				
+				DataBaseAdapter db = new DataBaseAdapter(this);
+				db.open();
+		        Cursor c = db.getAllRecords();
+		        String serverPort = null;
+		        //If data exist into database
+		        if (c.moveToFirst())
+		        {
+					do 
+		            {          
+		            	serverPort = c.getString(1) + ":" + c.getString(2);
+		            	Log.d("url", "http://" + serverPort + "/ServiceAttendance.asmx/saveAttendance");
+		           
+		            } while (c.moveToNext());
+
+		        }
+		        
+				camera.takePicture(null, null,new PhotoHandler(getApplicationContext(), code, pwd, InOutAb, serverPort));
 			}
 		} 
 		catch (Throwable e) 
@@ -115,7 +161,7 @@ public class AttendanceActivity extends Activity implements LocationListener{
 			Camera.getCameraInfo(i, info);
 			if (info.facing == CameraInfo.CAMERA_FACING_FRONT) 
 			{
-				Log.d(DEBUG_TAG, "Camera found");
+				Log.d(DEBUG_TAG, "Front Facing Camera found");
 				cameraId = i;
 				break;
 			}
@@ -126,7 +172,7 @@ public class AttendanceActivity extends Activity implements LocationListener{
 	private int findBackFacingCamera() 
 	{
 		int cameraId = -1;
-		// Search for the front facing camera
+		// Search for the back facing camera
 		int numberOfCameras = Camera.getNumberOfCameras();
 		for (int i = 0; i < numberOfCameras; i++) 
 		{
@@ -134,7 +180,7 @@ public class AttendanceActivity extends Activity implements LocationListener{
 			Camera.getCameraInfo(i, info);
 			if (info.facing == CameraInfo.CAMERA_FACING_BACK) 
 			{
-				Log.d(DEBUG_TAG, "Camera found");
+				Log.d(DEBUG_TAG, "Back facing Camera found");
 				cameraId = i;
 				break;
 			}

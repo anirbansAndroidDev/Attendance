@@ -24,10 +24,12 @@ import org.apache.http.util.EntityUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import com.ica.database.DataBaseAdapter;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
@@ -35,13 +37,13 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 public class AttendanceLoginMainActivity extends Activity {
 
 	private ProgressDialog pgLogin;
 	private static String loginStatus = null;
+	String serverPort =null;
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -52,6 +54,20 @@ public class AttendanceLoginMainActivity extends Activity {
 		EditText user_id = (EditText)findViewById(R.id.txtEntryUserName);
 		EditText password = (EditText)findViewById(R.id.txtEntryPassword);
 		
+		DataBaseAdapter db = new DataBaseAdapter(this);
+		db.open();
+        Cursor c = db.getAllRecords();
+        // If data exist into database
+        if (c.moveToFirst())
+        {
+			do 
+            {          
+            	serverPort = c.getString(1) + ":" + c.getString(2);
+
+            } while (c.moveToNext());
+
+        }
+		
 		if(haveNetworkConnection())
 		{
 			if(user_id.getText().toString().length()<1 || password.getText().toString().length()<1)
@@ -60,19 +76,22 @@ public class AttendanceLoginMainActivity extends Activity {
 			}
 			else 
 			{
-				// pb.setVisibility(View.VISIBLE);
-				// new MyAsyncTask().execute(user_id.getText().toString(),password.getText().toString());	
+				if(serverPort != null)
+				{
+				pgLogin = new ProgressDialog(AttendanceLoginMainActivity.this);
+				pgLogin.setMessage("Please wait while progress login...");
+				pgLogin.setIndeterminate(true);
+				pgLogin.setCancelable(true);
+				pgLogin.setCanceledOnTouchOutside(false);
 
-//				pgLogin = new ProgressDialog(AttendanceLoginMainActivity.this);
-//				pgLogin.setMessage("Please wait while progress login...");
-//				pgLogin.setIndeterminate(true);
-//				pgLogin.setCancelable(false);
-//				pgLogin.setCanceledOnTouchOutside(false);
-//
-//				pgLogin.show();
-				Intent i = new Intent(this, AttendanceActivity.class);
-				startActivity(i);
-
+				pgLogin.show();
+				
+				new MyAsyncTask().execute(user_id.getText().toString(),password.getText().toString());	
+				}
+				else
+				{
+					Toast.makeText(this, "You need to setup configuration.", Toast.LENGTH_LONG).show();
+				}
 			}
 		}
 		else
@@ -84,12 +103,18 @@ public class AttendanceLoginMainActivity extends Activity {
 	public void cancel(View v) {
 		finish();
 	}
+	
+	public void settings(View v) {
+		Intent showList = new Intent(this, settings.class);
+		startActivity(showList);
+	}
 		//===================================================================================================================================
 		//sending EmailAddress and Password to server
 		//===================================================================================================================================
 		private class MyAsyncTask extends AsyncTask<String, Integer, Double>{
 
 			String responseBody;
+			int responseCode;
 			@Override
 			protected Double doInBackground(String... params) {
 				// TODO Auto-generated method stub
@@ -99,23 +124,37 @@ public class AttendanceLoginMainActivity extends Activity {
 
 			protected void onPostExecute(Double result){
 				//Toast.makeText(getApplicationContext(), responseBody, Toast.LENGTH_LONG).show();
-				processResponce(responseBody);
+				
+				if(responseCode == 200)
+				{
+					processResponce(responseBody);
+				}
+				
+				else
+				{
+					if (pgLogin.isShowing()) 
+					{
+						pgLogin.cancel();
+						pgLogin.dismiss();
+					}
+					Toast.makeText(AttendanceLoginMainActivity.this, "Not getting proper responce from server.\nCould be wifi problem or server.", Toast.LENGTH_LONG).show();
+				}
 			}
 
 			protected void onProgressUpdate(Integer... progress){
 
 			}
 
-			public void postData(String emailId,String passwrd) {
+			public void postData(String mbCode,String passwrd) {
 				// Create a new HttpClient and Post Header
 				HttpClient httpclient = new DefaultHttpClient();
-				HttpPost httppost = new HttpPost("http://icaerp.com/AndroidDataService/dataServiceAndroid.asmx/login");
+				HttpPost httppost = new HttpPost("http://" + serverPort + "/ServiceAttendance.asmx/login");
 
 				try {
 					// Data that I am sending
 					List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>();
-					nameValuePairs.add(new BasicNameValuePair("mb_code", emailId));
-					nameValuePairs.add(new BasicNameValuePair("pwd", passwrd));
+					nameValuePairs.add(new BasicNameValuePair("mb_code", mbCode));
+					nameValuePairs.add(new BasicNameValuePair("Pwd", passwrd));
 					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
 
 					// Execute HTTP Post Request
@@ -172,27 +211,32 @@ public class AttendanceLoginMainActivity extends Activity {
 				}
 
 				//If Email and Pass match with server
-				if(loginStatus.equalsIgnoreCase("T"))
+				if(loginStatus.equalsIgnoreCase("Y"))
 				{
 					NodeList mb=doc.getElementsByTagName("mb");
+					
+					String mb_code = null;
+					String pwd = null;
 					for (int i=0;i<mb.getLength();i++) 
 					{
-						//		    		setMbcode("" + ((Element)mb.item(i)).getAttribute("mbcode"));
-						//		    		setMbname("" + ((Element)mb.item(i)).getAttribute("mbname"));
-						//		    		branchid  = "" + ((Element)mb.item(i)).getAttribute("branchid");
-						//		    		pwd       = "" + ((Element)mb.item(i)).getAttribute("pwd");
+						mb_code  = "" + ((Element)mb.item(i)).getAttribute("mb_code");
+			    		pwd       = "" + ((Element)mb.item(i)).getAttribute("pwd");
 					}
-					Toast.makeText( getApplicationContext(),"Login Successful.",Toast.LENGTH_SHORT).show();
-					if (pgLogin.isShowing()) {
-						pgLogin.cancel();
-						pgLogin.dismiss();
-					}
-					
+					//Toast.makeText( getApplicationContext(),"Login Successful.",Toast.LENGTH_SHORT).show();
+					Intent i = new Intent(this, AttendanceActivity.class);
+					i.putExtra("code", mb_code);
+					i.putExtra("pwd", pwd);
+					startActivity(i);
 				}
 				else if(loginStatus.equalsIgnoreCase("F"))
 				{
-					Toast.makeText( getApplicationContext(),"Your login info don't match.",Toast.LENGTH_SHORT).show();
+					Toast.makeText( getApplicationContext(),"Your credentials could not be authenticated.\nPlease try again.",Toast.LENGTH_SHORT).show();
 				}
+				if (pgLogin.isShowing()) {
+					pgLogin.cancel();
+					pgLogin.dismiss();
+				}
+
 			} 
 			catch (Throwable t) 
 			{

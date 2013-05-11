@@ -1,7 +1,5 @@
 package com.example.attendance;
 
-import android.app.Activity;
-import android.app.ActivityGroup;
 import android.app.AlertDialog;
 import android.app.Service;
 import android.content.Context;
@@ -14,8 +12,9 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.util.Log;
+import android.widget.Toast;
 
-public class GPSTracker extends Activity implements LocationListener {
+public class GPSTracker extends Service implements LocationListener {
 
 	private final Context mContext;
 
@@ -59,46 +58,70 @@ public class GPSTracker extends Activity implements LocationListener {
 			// getting network status
 			isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
 
-			if (!isGPSEnabled && !isNetworkEnabled) {
-				// no network provider is enabled
+			if (!isGPSEnabled && !isNetworkEnabled) 
+			{
+				// no network no GPS provider is enabled
 			} 
-			else {
+			
+			//location access enabled using GPS and Network both
+			else 
+			{
 				this.canGetLocation = true;
-				if (isNetworkEnabled) {
-					locationManager.requestLocationUpdates(
-							LocationManager.NETWORK_PROVIDER,
-							MIN_TIME_BW_UPDATES,
-							MIN_DISTANCE_CHANGE_FOR_UPDATES, this);
-					Log.d("Network", "Network");
-					if (locationManager != null) {
-						setNlocation(locationManager
-								.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
-						if (getNlocation() != null) {
+				
+				//getting lat/lng using Network
+				if (isNetworkEnabled) 
+				{
+					locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,MIN_TIME_BW_UPDATES,MIN_DISTANCE_CHANGE_FOR_UPDATES, this);
+					
+					Log.d("Network", "Getting Lat Lng using Network");
+
+					if (locationManager != null) 
+					{
+						for(int i = 0; i<=3; i++)
+						{
+							setNlocation(locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
+						}
+
+						if (getNlocation() != null) 
+						{
 							Nlatitude = getNlocation().getLatitude();
 							Nlongitude = getNlocation().getLongitude();
+							
 							setNlocation(Nlocation);
 						}
 					}
 				}
-				// if GPS Enabled get lat/long using GPS Services
-				if (isGPSEnabled) {
-					if (getGlocation() == null) {
-						locationManager.requestLocationUpdates(
-								LocationManager.GPS_PROVIDER,
-								MIN_TIME_BW_UPDATES,
-								MIN_DISTANCE_CHANGE_FOR_UPDATES, this);
-						Log.d("GPS Enabled", "GPS Enabled");
-						if (locationManager != null) {
-							setGlocation(locationManager
-									.getLastKnownLocation(LocationManager.GPS_PROVIDER));
-							if (getGlocation() != null) {
+				
+				// getting lat/long using GPS
+				if (isGPSEnabled) 
+				{
+					if (getGlocation() == null) 
+					{
+						locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,MIN_TIME_BW_UPDATES,MIN_DISTANCE_CHANGE_FOR_UPDATES, this);
+						
+						Log.d("GPS Enabled", "Getting Lat lng using GPS");
+//						Toast.makeText(mContext, "Getting Lat lng using GPS" ,Toast.LENGTH_SHORT).show();
+						
+						if (locationManager != null) 
+						{
+							for(int i = 0; i<=3; i++)
+							{
+								setGlocation(locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER));
+							}
+							
+							if (getGlocation() != null) 
+							{
+								
 								Glatitude = getGlocation().getLatitude();
 								Glongitude = getGlocation().getLongitude();
+								
 								setGlocation(Glocation);
 							}
 						}
 					}
 				}
+				//Stop using GPS
+				stopUsingGPS();
 			}
 
 		} catch (Exception e) {
@@ -230,6 +253,11 @@ public class GPSTracker extends Activity implements LocationListener {
 
 	void setGlocation(Location glocation) {
 		Glocation = glocation;
+	}
+
+	@Override
+	public IBinder onBind(Intent arg0) {
+		return null;
 	}
 
 }

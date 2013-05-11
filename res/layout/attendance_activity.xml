@@ -8,7 +8,7 @@
         android:id="@+id/tableLayout1"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20sp" >
+        android:layout_marginTop="25sp" >
 
         <TableRow
             android:id="@+id/tableRow1"
@@ -22,7 +22,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="60sp"
                 android:gravity="center_horizontal"
-                android:text="Attendance on the move"
+                android:text="@string/top_header"
                 android:textAppearance="?android:attr/textAppearanceLarge"
                 android:textColor="#81DAF5"
                 android:textStyle="bold" />
@@ -47,8 +47,8 @@
                     android:layout_height="wrap_content"
                     android:background="@drawable/blue_button"
                     android:drawableRight="@drawable/in"
-                    android:onClick="onClick"
-                    android:text="In" />
+                    android:onClick="in"
+                    android:text="@string/in_btn_txt" />
 
                 <ImageView
                     android:id="@+id/imageView1"
@@ -64,7 +64,8 @@
                     android:layout_height="wrap_content"
                     android:background="@drawable/blue_button"
                     android:drawableLeft="@drawable/in"
-                    android:text="Out" />
+                    android:onClick="out"
+                    android:text="@string/out_btn_txt" />
             </LinearLayout>
         </TableRow>
     </TableLayout>
@@ -80,5 +81,7 @@
         android:background="@drawable/red_button"
         android:drawableLeft="@drawable/absent"
         android:gravity="center"
+        android:onClick="absent"
         android:text=" Mark Absent" />
-</RelativeLayout>
+
+</RelativeLayout>

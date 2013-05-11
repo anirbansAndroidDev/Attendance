@@ -1,9 +1,9 @@
 package com.example.attendance;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,6 @@ import java.util.Locale;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -24,9 +23,12 @@ import org.apache.http.util.EntityUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 import android.content.Context;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.CompressFormat;
+import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.location.Address;
@@ -38,6 +40,8 @@ import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.ica.database.DataBaseAdapter;
+
 public class PhotoHandler implements PictureCallback {
 
 	private final Context context;
@@ -47,21 +51,35 @@ public class PhotoHandler implements PictureCallback {
 	Double lng = null;
 	GPSTracker gps;
 
-	public PhotoHandler(Context context) {
+	String mdCode,pass,state,serverPortAddress;
+	public PhotoHandler(Context context, String code, String pwd,String InOutAb,String serverPort) {
 		this.context = context;
+		mdCode = code;
+		pass = pwd;
+		state = InOutAb;
+		serverPortAddress = serverPort;
 	}
 
 	@Override
-	public void onPictureTaken(byte[] data, Camera camera) {
+	public void onPictureTaken(byte[] imgData, Camera camera) {
+		
+		//Compressing the image 640*480
+		//-----------------------------------------
+		Bitmap bmp=BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
+		Bitmap resizedBmp = Bitmap.createScaledBitmap(bmp, 640, 480, false);
+		
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		resizedBmp.compress(CompressFormat.PNG, 0, bos);
+		byte[] data = bos.toByteArray();
+		//-----------------------------------------
+
 
 		File pictureFileDir = getDir();
 
 		if (!pictureFileDir.exists() && !pictureFileDir.mkdirs()) {
 
-			// Log.d(MakePhotoActivity.DEBUG_TAG, "Can't create directory to save image.");
 			Toast.makeText(context, "Can't create directory to save image.",Toast.LENGTH_LONG).show();
 			return;
-
 		}
 
 //		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyymmddhhmmss");
@@ -69,9 +87,7 @@ public class PhotoHandler implements PictureCallback {
 //		String photoFile = "Picture_" + date + ".jpg";
 		
 		String photoFile = "MyPicture.jpg";
-
 		String filename = pictureFileDir.getPath() + File.separator + photoFile;
-
 		File pictureFile = new File(filename);
 
 		try 
@@ -84,8 +100,8 @@ public class PhotoHandler implements PictureCallback {
 			gps = new GPSTracker(context);
 			if(gps.canGetLocation())
 			{
-				String MbCode 			   = "MbCode001";
-			    String Paswrd   		   = "Password";
+				String MbCode 			   = mdCode;
+			    String Pasword   		   = pass;
 
 				double GpsLatitude  	   = gps.getGPSLatitude();
 				double GpsLongitude 	   = gps.getGPSLongitude();
@@ -100,9 +116,7 @@ public class PhotoHandler implements PictureCallback {
 				String GpsAddress 		   = "";
 				String NetworkAddress      = "";
 				
-				//String image = data.toString();
 				String image = Base64.encodeToString(data, Base64.DEFAULT);
-				//String image = MyBase64.encodeBytes(data);
 				
 				Toast.makeText(context, "Your Network Location is - \nLat: " + NetworkLatitude + "\nLong: " + Networklongitude +
 														"\nYour GPS Location is - \nLat: " + GpsLatitude + "\nLong: " + GpsLongitude, 
@@ -117,7 +131,25 @@ public class PhotoHandler implements PictureCallback {
 				{
 					GpsAddress = showLoc(GpsLatitude,GpsLongitude);
 				}
-				new MyAsyncTask().execute(MbCode, Paswrd, StrGpsLatitude, StrGpsLongitude, StrNetworkLatitude, StrNetworklongitude, GpsAddress, NetworkAddress, image);
+				
+				if(NetworkLatitude != 0 || Networklongitude !=0 || GpsLatitude != 0 || GpsLongitude !=0)
+				{
+					new MyAsyncTask().execute(MbCode, Pasword, StrGpsLatitude, StrGpsLongitude, StrNetworkLatitude, StrNetworklongitude, GpsAddress, NetworkAddress, image, state);
+				}
+				else
+				{
+					Toast.makeText(context, "Sorry! We are not getting your position.\nAttendance was unsuccessful.\nTry again.", Toast.LENGTH_LONG).show();
+					
+					if (AttendanceActivity.pgLogin != null)
+					{
+						
+						if (AttendanceActivity.pgLogin.isShowing()) 
+						{
+							AttendanceActivity.pgLogin.cancel();
+							AttendanceActivity.pgLogin.dismiss();
+						}
+					}
+				}
 			}
 			else
 			{
@@ -127,18 +159,19 @@ public class PhotoHandler implements PictureCallback {
 		} 
 		catch (Exception error) 
 		{
+			Log.d("Exception", error+"");
 			Toast.makeText(context, "Image could not be saved.",Toast.LENGTH_LONG).show();
 		}
 	}
 
 	private File getDir() 
 	{
-		File sdDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-		return new File(sdDir, "CameraAPIDemo");
+		File sdDir = Environment.getExternalStorageDirectory();
+		return new File(sdDir, "Attendance Image");
 	}
 	
 	//==========================================================================================================================================
-	//getting address from lat lng
+	//getting address from lat lng  
 	//==========================================================================================================================================	
 		protected String showLoc(double lat, double lng) 
 		{
@@ -161,7 +194,7 @@ public class PhotoHandler implements PictureCallback {
 			catch (Throwable e) 
 			{
 				Log.d("address error: \n", ""+e);
-				Toast.makeText( context,""+e,Toast.LENGTH_SHORT ).show();
+				Toast.makeText( context,"Sorry could get your address.",Toast.LENGTH_SHORT ).show();
 			}
 			return add;
 		}
@@ -177,7 +210,7 @@ public class PhotoHandler implements PictureCallback {
 		String responseBody = null;
 		@Override
 		protected Double doInBackground(String... params) {
-			postData(params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7],params[8]);
+			postData(params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7],params[8],params[9]);
 			return null;
 		}
 
@@ -190,7 +223,18 @@ public class PhotoHandler implements PictureCallback {
 			}
 			else
 			{
-				Toast.makeText(context, "Empty Responce.", Toast.LENGTH_LONG).show();
+				//Toast.makeText(context, "Empty Response From server.", Toast.LENGTH_LONG).show();
+				Toast.makeText(context, "Please check your server settings.\nAttendance was unsuccessful.", Toast.LENGTH_LONG).show();
+				
+				if (AttendanceActivity.pgLogin != null)
+				{
+					
+					if (AttendanceActivity.pgLogin.isShowing()) 
+					{
+						AttendanceActivity.pgLogin.cancel();
+						AttendanceActivity.pgLogin.dismiss();
+					}
+				}
 			}
 
 		}
@@ -198,10 +242,11 @@ public class PhotoHandler implements PictureCallback {
 			
 		}
 
-		public void postData(String mb_code,String pwd,String nlat,String nlng,String glat,String glng,String nloc,String gloc,String Photo) {
+		public void postData(String mb_code,String pwd,String nlat,String nlng,String glat,String glng,String nloc,String gloc,String Photo,String state) {
 			// Create a new HttpClient and Post Header
 			HttpClient httpclient = new DefaultHttpClient();
-			HttpPost httppost = new HttpPost("http://203.153.37.13:89/AttendenceService.asmx/SaveAttendence");
+			//HttpPost httppost = new HttpPost("http://61.8.158.157:89/ServiceAttendance.asmx/saveAttendance");
+			HttpPost httppost = new HttpPost("http://" + serverPortAddress + "/ServiceAttendance.asmx/saveAttendance");
 
 			try {
 				// Data that I am sending
@@ -214,8 +259,9 @@ public class PhotoHandler implements PictureCallback {
 				nameValuePairs.add(new BasicNameValuePair("glng", glng));
 				nameValuePairs.add(new BasicNameValuePair("nloc", nloc));
 				nameValuePairs.add(new BasicNameValuePair("gloc", gloc));
-				nameValuePairs.add(new BasicNameValuePair("Photo", Photo));
-
+				nameValuePairs.add(new BasicNameValuePair("imageArr", Photo));
+				nameValuePairs.add(new BasicNameValuePair("TP", state));
+				
 				httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
 
 				// Execute HTTP Post Request
@@ -256,10 +302,11 @@ public class PhotoHandler implements PictureCallback {
 				//Toast.makeText( getApplicationContext(),loginStatus,Toast.LENGTH_SHORT).show();
 			}
 
-			//If Email and Pass match with server 
-			if(loginStatus.equalsIgnoreCase("T"))
+			//If All the data including image posted response will be "Y" 
+			if(loginStatus.equalsIgnoreCase("Y"))
 			{
 				Toast.makeText( context,"Thanks for your attendance",Toast.LENGTH_LONG).show();
+//				gps = new GPSTracker(context);
 			}
 			else 
 			{
