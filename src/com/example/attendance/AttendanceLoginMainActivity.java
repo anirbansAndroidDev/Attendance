@@ -161,6 +161,8 @@ public class AttendanceLoginMainActivity extends Activity {
 					httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
 					HttpResponse response = httpclient.execute(httppost);
 					responseBody = EntityUtils.toString(response.getEntity());
+					responseCode = response.getStatusLine().getStatusCode();
+
 
 					Log.d("result", responseBody);
 				} 
